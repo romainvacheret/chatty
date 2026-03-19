@@ -6,8 +6,14 @@ import (
 )
 
 func main() {
-	sock, err := communication.InitReusableSocket()
-	defer syscall.Close(sock.Fd)
+	sock, err := communication.InitSocketDefault()
+
 	if err != nil { return }
-	communication.Listen(sock)
+
+	err = communication.SetSocketReusable(sock)
+
+	if err != nil { return }
+
+	defer syscall.Close(sock.Fd)
+	communication.ListenForClient(sock)
 }

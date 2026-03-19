@@ -1,8 +1,11 @@
 package communication
 
 import (
+	"bytes"
 	"fmt"
+	"strings"
 	"syscall"
+	"unicode"
 )
 
 const BUFF_SIZE = 2048
@@ -14,34 +17,29 @@ type SocketInfo struct {
 	Addr syscall.SockaddrInet4
 }
 
-func InitSocket() (*SocketInfo, error) {
+func InitSocket(port int, addr [4]byte) (*SocketInfo, error) {
 	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, 0)
 
 	if err != nil {
 		return nil, err
 	}
 
-	addr := syscall.SockaddrInet4{ Port: SOCK_PORT, Addr: SOCK_ADDR }
+	sockAddr := syscall.SockaddrInet4{ Port: port, Addr: addr }
 
-	return &SocketInfo{ Fd: fd, Addr: addr }, nil
+	return &SocketInfo{ Fd: fd, Addr: sockAddr }, nil
 }
 
-func InitReusableSocket() (*SocketInfo, error) {
-	sock, err := InitSocket()
+func InitSocketDefault() (*SocketInfo, error) {
+	return InitSocket(SOCK_PORT, SOCK_ADDR)
+}
 
-	if err != nil {
-		return nil, err
-	}
-
-	if err := syscall.SetsockoptInt(
+func SetSocketReusable(sock *SocketInfo) error {
+	return syscall.SetsockoptInt(
 		sock.Fd, 
 		syscall.SOL_SOCKET,
 		syscall.SO_REUSEADDR,
-		1); err != nil {
-		return nil, err
-	}
-
-	return sock, err
+		1,
+	);
 }
 
 func read(fd int) ([]byte, error) {
@@ -49,7 +47,6 @@ func read(fd int) ([]byte, error) {
 	buff := make([]byte, BUFF_SIZE)
 
 	for totalRead < len(buff) {
-		// message must be 
 		nb, err := syscall.Read(fd, buff[totalRead:])
 		totalRead += nb
 
@@ -60,7 +57,7 @@ func read(fd int) ([]byte, error) {
 }
 
 
-func write(fd int, buff []byte) error {
+func Write(fd int, buff []byte) error {
 	totalWritten := 0
 
 	for totalWritten < len(buff) {
@@ -72,17 +69,35 @@ func write(fd int, buff []byte) error {
 	return nil
 }
 
-
-func Send(sock *SocketInfo, message []byte) error {
-	err := syscall.Connect(sock.Fd, &sock.Addr)
-	defer syscall.Close(sock.Fd)
-
-	if err != nil { return err }
-
-	return write(sock.Fd, message)
+func WritePadded(fd int, buff []byte) error {
+	padding := bytes.Repeat([]byte(" "), BUFF_SIZE - len(buff))
+	return Write(fd, append(buff, padding...))
 }
 
-func Listen(sock *SocketInfo) error {
+func Connect(sock *SocketInfo) error {
+	return syscall.Connect(sock.Fd, &sock.Addr)
+}
+
+func Close(sock *SocketInfo) error {
+	return syscall.Close(sock.Fd)
+}
+
+func ListenForMessage(connfd int, callback func ()) {
+	for {
+		buff, err := read(connfd)
+
+		if err != nil { return }
+
+		// remove padding
+		str := strings.TrimRightFunc(string(buff), unicode.IsSpace)
+
+		// TODO: add indentification with names instead of fd
+		fmt.Printf("%d: %s\n", connfd, str)
+		callback()
+	}
+}
+
+func ListenForClient(sock *SocketInfo) error {
 	err := syscall.Bind(sock.Fd, &sock.Addr)
 	defer syscall.Close(sock.Fd)
 
@@ -97,9 +112,8 @@ func Listen(sock *SocketInfo) error {
 
 		if err != nil { return err }
 
-		buff, err := read(connfd)
-
-		if err != nil { return err }
-		fmt.Println("Msg", string(buff))
+		go ListenForMessage(connfd, func() {
+			WritePadded(connfd, []byte("ack"))
+		})
 	}
 }
