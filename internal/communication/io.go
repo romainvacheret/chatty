@@ -6,6 +6,6 @@ import (
 )
 
 
-func ReadLineStdin() (string ,error) {
+func ReadLineStdin() (string, error) {
 	return  bufio.NewReader(os.Stdin).ReadString('\n')
 }

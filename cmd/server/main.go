@@ -2,18 +2,27 @@ package main
 
 import (
 	"chatty/internal/communication"
-	"syscall"
+	"chatty/internal/utils"
 )
+
 
 func main() {
 	sock, err := communication.InitSocketDefault()
+	if err != nil { 
+		utils.WriteErr("Impossible to initialize default socket", err)
+		return
+	}
 
-	if err != nil { return }
+	
+	if err := communication.SetSocketReusable(sock); err != nil { 
+		utils.WriteErr("Error while changing socket status", err)
+		return
+	}
 
-	err = communication.SetSocketReusable(sock)
+	defer communication.Close(sock)
 
-	if err != nil { return }
-
-	defer syscall.Close(sock.Fd)
-	communication.ListenForClient(sock)
+	if communication.ListenForClient(sock, communication.NewConnectionManager()); err != nil { 
+		utils.WriteErr("Error while listening to new clients", err)
+		return
+	}
 }

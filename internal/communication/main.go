@@ -82,7 +82,7 @@ func Close(sock *SocketInfo) error {
 	return syscall.Close(sock.Fd)
 }
 
-func ListenForMessage(connfd int, callback func ()) {
+func ListenForMessage(connfd int, callback func ([]byte)) {
 	for {
 		buff, err := read(connfd)
 
@@ -92,12 +92,12 @@ func ListenForMessage(connfd int, callback func ()) {
 		str := strings.TrimRightFunc(string(buff), unicode.IsSpace)
 
 		// TODO: add indentification with names instead of fd
-		fmt.Printf("%d: %s\n", connfd, str)
-		callback()
+		fmt.Printf("--%d: %s--\n", connfd, str)
+		callback(buff)
 	}
 }
 
-func ListenForClient(sock *SocketInfo) error {
+func ListenForClient(sock *SocketInfo, connectionManager *ConnectionManager) error {
 	err := syscall.Bind(sock.Fd, &sock.Addr)
 	defer syscall.Close(sock.Fd)
 
@@ -109,11 +109,13 @@ func ListenForClient(sock *SocketInfo) error {
 
 	for {
 		connfd, _, err := syscall.Accept(sock.Fd)
+		connectionManager.AddClient(connfd)
 
 		if err != nil { return err }
 
-		go ListenForMessage(connfd, func() {
+		go ListenForMessage(connfd, func(msg []byte) {
 			WritePadded(connfd, []byte("ack"))
+			connectionManager.WriteToClients(msg, connfd)
 		})
 	}
 }
