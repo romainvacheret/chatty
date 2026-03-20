@@ -2,10 +2,9 @@ package communication
 
 import (
 	"bytes"
+	"chatty/internal/utils"
 	"fmt"
-	"strings"
 	"syscall"
-	"unicode"
 )
 
 const BUFF_SIZE = 2048
@@ -82,18 +81,15 @@ func Close(sock *SocketInfo) error {
 	return syscall.Close(sock.Fd)
 }
 
-func ListenForMessage(connfd int, callback func ([]byte)) {
+type ListenCallbackFunc func ([]byte)
+
+func ListenForMessage(connfd int, callback ListenCallbackFunc) error {
 	for {
-		buff, err := read(connfd)
-
-		if err != nil { return }
-
-		// remove padding
-		str := strings.TrimRightFunc(string(buff), unicode.IsSpace)
-
-		// TODO: add indentification with names instead of fd
-		fmt.Printf("--%d: %s--\n", connfd, str)
-		callback(buff)
+		if buff, err := read(connfd); err != nil {
+			return err
+		} else {
+			callback(buff)
+		}
 	}
 }
 
@@ -114,7 +110,8 @@ func ListenForClient(sock *SocketInfo, connectionManager *ConnectionManager) err
 		if err != nil { return err }
 
 		go ListenForMessage(connfd, func(msg []byte) {
-			WritePadded(connfd, []byte("ack"))
+			fmt.Printf("--%d: %s--\n", connfd, utils.RemovePadding(msg))
+			// WritePadded(connfd, []byte("ack"))
 			connectionManager.WriteToClients(msg, connfd)
 		})
 	}

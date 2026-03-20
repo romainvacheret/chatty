@@ -5,18 +5,15 @@ type ClientSender struct {
 }
 
 func NewClientSender(sock *SocketInfo) *ClientSender {
-	sender := ClientSender{ serverSocket: sock }
-	go sender.Listen()
-
-	return &sender
+	return &ClientSender{ serverSocket: sock }
 }
 
 func (c *ClientSender) Send(message string) error {
 	return WritePadded(c.serverSocket.Fd, []byte(message))
 }
 
-func (c *ClientSender) Listen() {
-	ListenForMessage(c.serverSocket.Fd, func([]byte) {} )
+func (c *ClientSender) Listen(callback ListenCallbackFunc) error {
+	return ListenForMessage(c.serverSocket.Fd, callback)
 }
 
 func ExecuteLoopClient(sender *ClientSender) error {

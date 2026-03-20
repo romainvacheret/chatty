@@ -2,11 +2,14 @@ package main
 
 import (
 	"chatty/internal/communication"
+	"chatty/internal/logger"
 	"chatty/internal/utils"
 )
 
 
 func main() {
+	logger.InitLogger("server")
+
 	sock, err := communication.InitSocketDefault()
 	if err != nil { 
 		utils.WriteErr("Impossible to initialize default socket", err)
@@ -21,7 +24,7 @@ func main() {
 
 	defer communication.Close(sock)
 
-	if communication.ListenForClient(sock, communication.NewConnectionManager()); err != nil { 
+	if err := communication.ListenForClient(sock, communication.NewConnectionManager()); err != nil { 
 		utils.WriteErr("Error while listening to new clients", err)
 		return
 	}
