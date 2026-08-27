@@ -2,19 +2,28 @@ from __future__ import annotations
 
 from typing import Callable
 
-from .sockets import BUFF_SIZE, close_socket, listen_for_message, write
+from .requests import Request, RequestType, serialize_request
+from .sockets import close_socket, listen_for_message, write
 from .sockets import SocketInfo
-from ..utils import pad_bytes
 
 
 class ClientSender:
     def __init__(self, sock: SocketInfo):
         self.server_socket: SocketInfo = sock
 
-    def send(self, message: str) -> None:
-        write(self.server_socket.sock, pad_bytes(message, BUFF_SIZE))
+    def send_auth(self, username: str) -> None:
+        write(
+            self.server_socket.sock,
+            serialize_request(RequestType.AuthAsk, username),
+        )
 
-    def listen(self, callback: Callable[[bytes], None]) -> None:
+    def send(self, message: str) -> None:
+        write(
+            self.server_socket.sock,
+            serialize_request(RequestType.MessageSend, message),
+        )
+
+    def listen(self, callback: Callable[[Request], None]) -> None:
         listen_for_message(self.server_socket.sock, callback)
 
     def close(self) -> None:

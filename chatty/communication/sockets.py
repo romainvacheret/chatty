@@ -5,9 +5,8 @@ import threading
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from ..utils import remove_padding
+from .requests import Request, RequestType, parse_request, serialize_request
 from ..utils import close_quietly
-from ..utils import pad_bytes
 
 
 BUFF_SIZE = 2048
@@ -38,10 +37,10 @@ def set_socket_reusable(sock_info: SocketInfo) -> None:
     sock_info.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 
-def _read_exact(sock: socket.socket) -> bytes:
+def _read_exact(sock: socket.socket, size: int) -> bytes:
     chunks = bytearray()
-    while len(chunks) < BUFF_SIZE:
-        chunk = sock.recv(BUFF_SIZE - len(chunks))
+    while len(chunks) < size:
+        chunk = sock.recv(size - len(chunks))
         if not chunk:
             raise EOFError("socket closed")
         chunks.extend(chunk)
@@ -68,10 +67,24 @@ def close_socket(sock_info: SocketInfo) -> None:
     close_quietly(sock_info.sock)
 
 
-def listen_for_message(conn: socket.socket, callback: Callable[[bytes], None]) -> None:
+def _read_request(conn: socket.socket) -> Request:
+    header = bytearray()
     while True:
-        buff = _read_exact(conn)
-        callback(buff)
+        chunk = conn.recv(1)
+        if not chunk:
+            raise EOFError("socket closed")
+        header.extend(chunk)
+        if header.endswith(b"\n"):
+            break
+
+    kind_raw, length_raw = header[:-1].decode().split("|", 1)
+    payload = _read_exact(conn, int(length_raw))
+    return parse_request(bytes(header) + payload)
+
+
+def listen_for_message(conn: socket.socket, callback: Callable[[Request], None]) -> None:
+    while True:
+        callback(_read_request(conn))
 
 
 def listen_for_client(
@@ -82,15 +95,23 @@ def listen_for_client(
 
     while True:
         conn, _ = sock_info.sock.accept()
-        username = remove_padding(_read_exact(conn))
+        auth_request = _read_request(conn)
+        if auth_request.type != RequestType.AuthAsk:
+            raise ValueError("expected auth request")
+        username = auth_request.content.decode()
         connection_manager.add_client(conn, username)
         connection_manager.broadcast_join(conn)
 
-        def on_message(msg: bytes, conn: socket.socket = conn) -> None:
+        def on_message(msg: Request, conn: socket.socket = conn) -> None:
+            if msg.type != RequestType.MessageSend:
+                return
             username = connection_manager.get_client_username(conn)
-            message = f"{username}: {remove_padding(msg)}"
+            message = f"{username}: {msg.content.decode()}"
             print(f"--{message}--")
-            connection_manager.write_to_clients(pad_bytes(message, BUFF_SIZE), conn)
+            connection_manager.write_to_clients(
+                serialize_request(RequestType.MessageBroadCast, message),
+                conn,
+            )
 
         def on_disconnect(conn: socket.socket = conn) -> None:
             connection_manager.remove_client(conn)

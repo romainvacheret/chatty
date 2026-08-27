@@ -4,8 +4,8 @@ import threading
 from dataclasses import dataclass, field
 from typing import Any
 
-from .sockets import BUFF_SIZE, write
-from ..utils import pad_bytes
+from .requests import RequestType, serialize_request
+from .sockets import write
 
 
 @dataclass
@@ -34,7 +34,6 @@ class ConnectionManager:
             return list(self.clients.keys())
 
     def write_to_clients(self, message: bytes | str, sender: Any) -> None:
-        message = pad_bytes(message, BUFF_SIZE)
         sender_fd = sender.fileno() if hasattr(sender, "fileno") else sender
         for client_fd in self.list_clients():
             if client_fd != sender_fd:
@@ -44,8 +43,14 @@ class ConnectionManager:
 
     def broadcast_join(self, client: Any) -> None:
         username = self.get_client_username(client)
-        self.write_to_clients(f"{username} joined", client)
+        self.write_to_clients(
+            serialize_request(RequestType.MessageBroadCast, f"{username} joined"),
+            client,
+        )
 
     def broadcast_leave(self, client: Any) -> None:
         username = self.get_client_username(client)
-        self.write_to_clients(f"{username} left", client)
+        self.write_to_clients(
+            serialize_request(RequestType.MessageBroadCast, f"{username} left"),
+            client,
+        )

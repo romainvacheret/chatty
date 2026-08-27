@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 
 from .communication.client import ClientSender
+from .communication.requests import Request, RequestType
 
 
 class EventType(IntEnum):
@@ -34,9 +35,10 @@ class Controller:
 
     def init_listener(self) -> None:
         def listen():
-            def on_message(buff: bytes) -> None:
+            def on_message(buff: Request) -> None:
                 if not self._closed.is_set():
-                    self.events.put(Event(EventType.EventMessage, buff.decode()))
+                    if buff.type == RequestType.MessageBroadCast:
+                        self.events.put(Event(EventType.EventMessage, buff.content.decode()))
 
             self.sender.listen(on_message)
 

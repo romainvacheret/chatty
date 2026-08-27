@@ -16,7 +16,7 @@ def launch_client() -> None:
 
         username = input("Username: ").strip() or "anonymous"
         sender = ClientSender(sock)
-        sender.send(username)
+        sender.send_auth(username)
         controller = Controller(sender)
         tui = ClientTui(controller)
         tui.run_main_loop()
