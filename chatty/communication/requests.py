@@ -10,6 +10,14 @@ DELIMITER = "\n"
 FIELD_SEP = "|"
 
 
+__all__ = [
+    "Request",
+    "RequestType",
+    "parse_request",
+    "serialize_request",
+]
+
+
 class RequestType(IntEnum):
     AuthAsk = 0
     MessageSend = 1

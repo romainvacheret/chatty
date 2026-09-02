@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-from ..communication.server import ConnectionManager
+from ..communication.server import ChatServer, ConnectionManager
 from ..communication.sockets import (
     SocketInfo,
     init_socket_default,
     set_socket_reusable,
-    listen_for_client,
     close_socket,
 )
 from ..logger import init_logger
 from ..utils import write_err
+
+
+__all__ = ["launch_server"]
 
 
 def launch_server() -> None:
@@ -18,7 +20,7 @@ def launch_server() -> None:
         init_logger("server")
         sock = init_socket_default()
         set_socket_reusable(sock)
-        listen_for_client(sock, ConnectionManager())
+        ChatServer(sock, ConnectionManager()).serve_forever()
     except Exception as err:
         write_err("Error while executing server", err)
     finally:

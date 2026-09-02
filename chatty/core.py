@@ -9,6 +9,13 @@ from .communication.client import ClientSender
 from .communication.requests import Request, RequestType
 
 
+__all__ = [
+    "Controller",
+    "Event",
+    "EventType",
+]
+
+
 class EventType(IntEnum):
     EventMessage = 0
 
@@ -25,7 +32,6 @@ class Controller:
         self.events: queue.SimpleQueue[Event | None] = queue.SimpleQueue()
         self._closed = threading.Event()
         self._listener_thread: threading.Thread | None = None
-        self.init_listener()
 
     def get_events(self) -> queue.SimpleQueue[Event | None]:
         return self.events
@@ -33,19 +39,38 @@ class Controller:
     def send(self, content: str) -> None:
         self.sender.send(content)
 
-    def init_listener(self) -> None:
-        def listen():
-            def on_message(buff: Request) -> None:
-                if not self._closed.is_set():
-                    if buff.type == RequestType.MessageBroadCast:
-                        self.events.put(Event(EventType.EventMessage, buff.content.decode()))
+    def start(self) -> None:
+        if self._listener_thread is not None:
+            return
 
-            self.sender.listen(on_message)
-
-        self._listener_thread = threading.Thread(target=listen, daemon=True)
+        self._listener_thread = threading.Thread(
+            target=self._listen,
+            daemon=True,
+        )
         self._listener_thread.start()
 
+    def _listen(self) -> None:
+        def on_message(request: Request) -> None:
+            self._handle_request(request)
+
+        self.sender.listen(on_message)
+
+    def _handle_request(self, request: Request) -> None:
+        if self._closed.is_set():
+            return
+
+        if request.type == RequestType.MessageBroadCast:
+            self.events.put(
+                Event(
+                    EventType.EventMessage,
+                    request.content.decode(),
+                )
+            )
+
     def close(self) -> None:
+        if self._closed.is_set():
+            return
+
         self._closed.set()
         self.events.put(None)
         self.sender.close()

@@ -6,6 +6,9 @@ import threading
 from .core import Controller, Event, EventType
 
 
+__all__ = ["ClientTui"]
+
+
 VIEW_DISPLAY = "display"
 VIEW_INPUT = "input"
 

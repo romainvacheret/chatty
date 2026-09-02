@@ -8,6 +8,9 @@ from ..tui import ClientTui
 from ..utils import write_err
 
 
+__all__ = ["launch_client"]
+
+
 def launch_client() -> None:
     try:
         init_logger("client")
@@ -18,6 +21,7 @@ def launch_client() -> None:
         sender = ClientSender(sock)
         sender.send_auth(username)
         controller = Controller(sender)
+        controller.start()
         tui = ClientTui(controller)
         tui.run_main_loop()
     except Exception as err:
